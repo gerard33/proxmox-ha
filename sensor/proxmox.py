@@ -69,6 +69,8 @@ class ProxmoxSensor(Entity):
         self._name = '{} {} ({})'.format(self._vmname, self._sensor, self._vmid)
         self._unique_id = '{}_{}_{}'.format(PROXMOX_DOMAIN, self._name, int(self._vmid)*20) ###
 
+        self.data = None
+
     @property
     def unique_id(self):
         """Return the unique ID of the binary sensor."""
@@ -134,9 +136,12 @@ class ProxmoxSensor(Entity):
 
     def update(self):
         """Update state of binary sensor."""
-        # my_item = next((vm for vm in my_list if vm['vmid'] == self._vmid), None)
-        self.data = self._proxmox._api.cluster.resources.get(type='vm')
-        #_LOGGER.error('Proxmox sensor data loaded the following VMs: %s', self.data)
-        vm = next((vm for vm in self.data if vm['vmid'] == self._vmid), None)
-        _LOGGER.error('Proxmox sensor data loaded the following VM: %s', vm)
-        self.data = vm
+        ## my_item = next((vm for vm in my_list if vm['vmid'] == self._vmid), None)
+        # self.data = self._proxmox._api.cluster.resources.get(type='vm')
+        ##_LOGGER.error('Proxmox sensor data loaded the following VMs: %s', self.data)
+        # vm = next((vm for vm in self.data if vm['vmid'] == self._vmid), None)
+        #_LOGGER.error('Proxmox sensor data loaded the following VM: %s', vm)
+        #self.data = vm
+
+        self.data = self._proxmox.get_vm(self._vmid)
+        _LOGGER.error('Proxmox VM: %s loaded: %s', self._vmid, self.data)
