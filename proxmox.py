@@ -111,6 +111,6 @@ class Proxmox:
         if self.data:
             # https://stackoverflow.com/questions/7079241/python-get-a-dict-from-a-list-based-on-something-inside-the-dict
             vm = next((vm for vm in self.data if vm['vmid'] == vmid), None)
-            _LOGGER.error('Updating Proxmox VM: %s', vm)
+            _LOGGER.error('Updating Proxmox VM: %s with data: %s', vmid, vm)
             return vm
         return None
