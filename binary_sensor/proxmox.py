@@ -4,6 +4,7 @@ Support for monitoring the state of Proxmox VMs.
 For more details about this component, please refer to the documentation at
 https://home-assistant.io/components/binary_sensor.proxmox/
 """
+from datetime import timedelta
 import logging
 
 import voluptuous as vol
@@ -13,6 +14,7 @@ from homeassistant.const import ATTR_ATTRIBUTION
 from homeassistant.components.binary_sensor import (
     BinarySensorDevice, PLATFORM_SCHEMA)
 from custom_components.proxmox import DOMAIN as PROXMOX_DOMAIN ###
+from homeassistant.util import Throttle
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,6 +22,8 @@ CONF_ATTRIBUTION = 'Data provided by Proxmox'
 DEFAULT_DEVICE_CLASS = 'power'
 DEFAULT_NAME = 'Proxmox {}' ###
 DEPENDENCIES = ['proxmox']
+
+MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=2)
 
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
@@ -79,7 +83,7 @@ class ProxmoxBinarySensor(BinarySensorDevice):
     @property
     def is_on(self):
         """Return true if the binary sensor is on."""
-        return self._status == 'running'
+        return self._status
 
     @property
     def _vm(self):
@@ -102,12 +106,18 @@ class ProxmoxBinarySensor(BinarySensorDevice):
             ATTR_ATTRIBUTION: CONF_ATTRIBUTION,
         }
 
+    @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
         """Update state of binary sensor."""
-        # my_item = next((vm for vm in my_list if vm['vmid'] == self._vmid), None)
-        self.data = self._proxmox._api.cluster.resources.get(type='vm')
-        #_LOGGER.error('Proxmox sensor data loaded the following VMs: %s', self.data)
-        vm = next((vm for vm in self.data if vm['vmid'] == self._vmid), None)
-        _LOGGER.error('Proxmox binary sensor data loaded the following VM: %s', vm)
-        self.data = vm
+        ## my_item = next((vm for vm in my_list if vm['vmid'] == self._vmid), None)
+        # self.data = self._proxmox._api.cluster.resources.get(type='vm')
+        ##_LOGGER.error('Proxmox sensor data loaded the following VMs: %s', self.data)
+        # vm = next((vm for vm in self.data if vm['vmid'] == self._vmid), None)
+        #_LOGGER.error('Proxmox sensor data loaded the following VM: %s', vm)
+        #self.data = vm
 
+        self.data = self._proxmox._api.cluster.resources.get(type='vm')
+        vm = next((vm for vm in self.data if vm['vmid'] == self._vmid), None)
+        _LOGGER.error('Proxmox VM binary sensor: %s loaded: %s', self._vmid, vm)
+
+        self._status = (vm['status'] == 'running')
