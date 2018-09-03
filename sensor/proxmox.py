@@ -4,17 +4,21 @@ Support for monitoring the state of Proxmox VMs.
 For more details about this component, please refer to the documentation at
 https://home-assistant.io/components/sensor.proxmox/
 """
+from datetime import timedelta
 import logging
 
 from homeassistant.const import ATTR_ATTRIBUTION
 from custom_components.proxmox import DOMAIN as PROXMOX_DOMAIN ###
 from homeassistant.helpers.entity import Entity
+from homeassistant.util import Throttle
 
 _LOGGER = logging.getLogger(__name__)
 
 CONF_ATTRIBUTION = 'Data provided by Proxmox'
 DEFAULT_NAME = 'Proxmox {}' ###
 DEPENDENCIES = ['proxmox']
+
+MIN_TIME_BETWEEN_UPDATES = timedelta(minutes=2)
 
 SENSORS = {
     'cpu': ['mdi:chip', '%'],
@@ -36,8 +40,10 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     vms = []
     for sensor in SENSORS:
         for vm in proxmox._api.cluster.resources.get(type='vm'):
-            _LOGGER.debug('Proxmox sensor loaded the following VM: %s', vm)
-            vms.append(ProxmoxSensor(proxmox, sensor, vm))
+            # No sensor when VM is off
+            if vm['status'] == 'running':
+                _LOGGER.debug('Proxmox sensor loaded the following VM: %s', vm)
+                vms.append(ProxmoxSensor(proxmox, sensor, vm))
     _LOGGER.debug('Proxmox sensor has following vms: %s', vms)
 
     # if node not in proxmox.data:
@@ -89,23 +95,7 @@ class ProxmoxSensor(Entity):
 
     @property ##
     def state(self):
-        """Return the state of the sensor.
-        The return type of this call depends on the attribute that
-        is configured.
-        """
-        if self._sensor == 'cpu':
-            self._state = round(self._cpu*100,2)
-        elif self._sensor == 'mem':
-            self._state = round(self._mem/self._maxmem*100,2)
-        elif self._sensor == 'uptime':
-            self._state = round(self._uptime/86400, 2)
-        elif self._sensor == 'maxdisk':
-            self._state = round(self._maxdisk/1073741824,2)
-        elif self._sensor == 'netin':
-            self._state = round(self._netin/1000,2)
-        elif self._sensor == 'netout':
-            self._state = round(self._netout/1000,2)
-
+        """Return the state of the sensor."""
         return self._state
 
     @property ##
@@ -134,6 +124,7 @@ class ProxmoxSensor(Entity):
 
         return sorted(result.items())
 
+    @Throttle(MIN_TIME_BETWEEN_UPDATES)
     def update(self):
         """Update state of binary sensor."""
         ## my_item = next((vm for vm in my_list if vm['vmid'] == self._vmid), None)
@@ -143,5 +134,20 @@ class ProxmoxSensor(Entity):
         #_LOGGER.error('Proxmox sensor data loaded the following VM: %s', vm)
         #self.data = vm
 
-        self.data = self._proxmox.get_vm(self._vmid)
-        _LOGGER.error('Proxmox VM: %s loaded: %s', self._vmid, self.data)
+        #self.data = self._proxmox.get_vm(self._vmid)
+        self.data = self._proxmox._api.cluster.resources.get(type='vm')
+        vm = next((vm for vm in self.data if vm['vmid'] == self._vmid), None)
+        _LOGGER.error('Proxmox VM sensor: %s loaded: %s', self._vmid, vm)
+
+        # No updates when VM is off
+        if vm['status'] == 'running':
+            if self._sensor == 'cpu':
+                self._state = round(vm['cpu']*100,2)
+            elif self._sensor == 'mem':
+                self._state = round(vm['mem']/vm['maxmem']*100,2)
+            elif self._sensor == 'uptime':
+                self._state = round(vm['uptime']/86400, 2)
+            elif self._sensor == 'netin':
+                self._state = round(vm['netin']/1000,2)
+            elif self._sensor == 'netout':
+                self._state = round(vm['netout']/1000,2)
